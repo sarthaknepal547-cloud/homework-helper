@@ -15,5 +15,11 @@
         <input type="file" id="file" name="file"><br><br>
         <input type="submit" value="Submit">
     </form>
+    <script>
+document.querySelector('form').addEventListener('submit', function(event) {
+    event.preventDefault(); // Stop the form from reloading the page
+    alert('Thank you for your question!');
+});
+</script>
 </body>
 </html>
