@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Homework Helper</title>
+</head>
+<body>
+    <h1>Homework Helper</h1>
+    <p>Type your question or upload a file/photo below:</p>
+    <form>
+        <label for="question">Type your question:</label><br>
+        <textarea id="question" name="question" rows="4" cols="50"></textarea><br><br>
+        <label for="file">Or upload a file/photo:</label>
+        <input type="file" id="file" name="file"><br><br>
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>
