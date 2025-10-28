@@ -1,70 +1,155 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <title>Homework Helper</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Homework Helper — Step-by-step</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 0; padding: 20px; background:#f6f7fb; color:#111; }
+    header { display:flex; gap:16px; align-items:center; margin-bottom:18px; }
+    h1{ margin:0; font-size:20px }
+    .card { background:white; border-radius:12px; padding:16px; box-shadow:0 6px 18px rgba(20,20,40,0.06); margin-bottom:16px; }
+    label{ display:block; margin-top:8px; font-weight:600; font-size:14px }
+    textarea{ width:100%; min-height:120px; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:14px; resize:vertical }
+    input[type=file]{ margin-top:8px }
+    button{ background:#1f6feb; color:white; border:0; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600 }
+    button[disabled]{ opacity:0.6; cursor:default }
+    #result{ white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; background:#0f1724; color:#dbeafe; padding:12px; border-radius:8px; overflow:auto }
+    .small{ font-size:13px; color:#666; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .hint{ margin-top:8px; color:#666; font-size:13px }
+  </style>
+  <!-- Tesseract.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 </head>
 <body>
-    <h1>Homework Helper</h1>
-    <p>Type your question or upload a file/photo below:</p>
-    <form>
-        <label for="question">Type your question:</label><br>
-        <textarea id="question" name="question" rows="4" cols="50"></textarea><br><br>
-        <label for="file">Or upload a file/photo:</label>
-        <input type="file" id="file" name="file"><br><br>
-        <input type="submit" value="Submit">
-    </form>
-    <div id="output"></div>
-    <img id="imagePreview" src="" style="max-width:300px; display:none; margin-top:20px;" alt="Image preview will appear here." />
-    <div id="fileName" style="margin-top:10px;"></div>
-    <script>
-    document.querySelector('form').addEventListener('submit', function(event) {
-        event.preventDefault(); // Prevent page reload
-        const question = document.getElementById('question').value;
-        const outputDiv = document.getElementById('output');
-        if (question.trim() !== "") {
-            outputDiv.innerHTML = "<h2>Your Question:</h2><p>" + question + "</p>";
-            // Simulated step-by-step solution
-            outputDiv.innerHTML += `
-                <h3>Step-by-Step Solution:</h3>
-                <ol>
-                    <li>Read the question carefully.</li>
-                    <li>Identify what is being asked.</li>
-                    <li>List out known information and requirements.</li>
-                    <li>Apply relevant formulas or logic.</li>
-                    <li>Write out the answer clearly.</li>
-                </ol>
-                <p><em>(This is a placeholder. You can connect to a real AI or backend later!)</em></p>
-            `;
-        } else {
-            outputDiv.innerHTML = "<p>Please enter a question or upload a file.</p>";
+  <header>
+    <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44'><rect rx='10' width='44' height='44' fill='%231f6feb'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='20' fill='white'>HW</text></svg>" alt="" style="width:44px;height:44px;border-radius:8px"/>
+    <div>
+      <h1>Homework Helper — Step-by-step</h1>
+      <div class="small">Type a question or upload an image/PDF with the question. Uses OCR then sends to your AI backend.</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <label for="question">Type your question (or edit OCR text)</label>
+    <textarea id="question" placeholder="Type question here..."></textarea>
+
+    <label for="file">Or upload an image / PDF (photo of question)</label>
+    <input id="file" type="file" accept="image/*,application/pdf" />
+
+    <div class="hint">After upload the extracted text appears in the box above. Fix anything OCR got wrong before sending.</div>
+
+    <div style="margin-top:12px" class="row">
+      <button id="sendBtn">Send to AI (step-by-step)</button>
+      <button id="ocrBtn">Run OCR now</button>
+      <div class="small" id="status"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>AI Answer (step-by-step)</label>
+    <div id="result">No answer yet. Type a question or upload an image and press "Send to AI".</div>
+  </div>
+
+  <script>
+    // CONFIG: set this to your deployed serverless endpoint that proxies to your desired AI.
+    // Example: const API_ENDPOINT = 'https://your-server.vercel.app/api/ai'
+    const API_ENDPOINT = '/api/ai'; // default expects same origin serverless route
+
+    const questionEl = document.getElementById('question');
+    const fileEl = document.getElementById('file');
+    const ocrBtn = document.getElementById('ocrBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+
+    async function runOCR(file) {
+      if (!file) return '';
+      statusEl.textContent = 'Running OCR...';
+      try {
+        // If PDF, try convert first page via browser PDF -> can be complicated.
+        // For simplicity we only handle images reliably here.
+        if (file.type === 'application/pdf') {
+          statusEl.textContent = 'PDF uploaded — browser-side PDF OCR is limited. Try converting to image or use server OCR.';
+          return '';
         }
+        const imgURL = URL.createObjectURL(file);
+        const worker = Tesseract.createWorker({
+          logger: m => {
+            // show basic OCR progress
+            if (m.status && m.progress) statusEl.textContent = `OCR: ${m.status} ${(m.progress*100).toFixed(0)}%`;
+          }
+        });
+        await worker.load();
+        await worker.loadLanguage('eng');
+        await worker.initialize('eng');
+        const { data: { text } } = await worker.recognize(imgURL);
+        await worker.terminate();
+        URL.revokeObjectURL(imgURL);
+        statusEl.textContent = 'OCR finished.';
+        return text;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'OCR error: see console.';
+        return '';
+      }
+    }
+
+    ocrBtn.addEventListener('click', async () => {
+      const f = fileEl.files[0];
+      if (!f) { statusEl.textContent = 'Pick an image first.'; return; }
+      const text = await runOCR(f);
+      if (text) questionEl.value = (questionEl.value ? questionEl.value + "\n\n" : "") + text;
     });
 
-    // Image and file name preview functionality
-    document.getElementById('file').addEventListener('change', function(event) {
-        const fileInput = event.target;
-        const imagePreview = document.getElementById('imagePreview');
-        const fileNameDiv = document.getElementById('fileName');
-        const file = fileInput.files[0];
-
-        if (file) {
-            fileNameDiv.textContent = "Uploaded file: " + file.name;
+    sendBtn.addEventListener('click', async () => {
+      const prompt = (questionEl.value || '').trim();
+      if (!prompt) { statusEl.textContent = 'Write or OCR a question first.'; return; }
+      sendBtn.disabled = true;
+      ocrBtn.disabled = true;
+      statusEl.textContent = 'Sending to AI...';
+      resultEl.textContent = '...waiting for AI...';
+      try {
+        const resp = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: prompt,
+            // you can add options for the backend AI model here
+            options: { step_by_step: true }
+          })
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          statusEl.textContent = 'Server error: ' + resp.status;
+          resultEl.textContent = 'Server response: ' + txt;
         } else {
-            fileNameDiv.textContent = "";
+          const data = await resp.json();
+          // Expecting { answer: "..." }
+          resultEl.textContent = data.answer || JSON.stringify(data, null, 2);
+          statusEl.textContent = 'Done.';
         }
-
-        if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.src = e.target.result;
-                imagePreview.style.display = "block";
-            }
-            reader.readAsDataURL(file);
-        } else {
-            imagePreview.src = "";
-            imagePreview.style.display = "none";
-        }
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Network error. Open console for details.';
+        resultEl.textContent = 'Network or CORS error. Make sure the backend exists and allows requests from this origin.';
+      } finally {
+        sendBtn.disabled = false;
+        ocrBtn.disabled = false;
+      }
     });
-    </script>
+
+    // Optional: if user uploads a file, auto OCR
+    fileEl.addEventListener('change', async () => {
+      const f = fileEl.files[0];
+      if (f) {
+        // auto-run OCR but do not overwrite typed content
+        const text = await runOCR(f);
+        if (text) questionEl.value = (questionEl.value ? questionEl.value + "\n\n" : "") + text;
+      }
+    });
+
+  </script>
 </body>
 </html>
