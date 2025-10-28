@@ -5,6 +5,8 @@
 </head>
 <body>
     <h1>Homework Helper</h1>
+    <h1>Homework Helper</h1>
+<p>Welcome to your step-by-step homework solving website!</p>
     <p>Type your question or upload a file/photo below:</p>
     <form>
         <label for="question">Type your question:</label><br>
