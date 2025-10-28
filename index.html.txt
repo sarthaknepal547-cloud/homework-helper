@@ -15,10 +15,23 @@
         <input type="file" id="file" name="file"><br><br>
         <input type="submit" value="Submit">
     </form>
+    <div id="output"></div>
     <script>
 document.querySelector('form').addEventListener('submit', function(event) {
     event.preventDefault(); // Stop the form from reloading the page
     alert('Thank you for your question!');
+});
+</script>
+<script>
+document.querySelector('form').addEventListener('submit', function(event) {
+    event.preventDefault(); // Prevent page reload
+    const question = document.getElementById('question').value;
+    const outputDiv = document.getElementById('output');
+    if (question.trim() !== "") {
+        outputDiv.innerHTML = "<h2>Your Question:</h2><p>" + question + "</p>";
+    } else {
+        outputDiv.innerHTML = "<p>Please enter a question or upload a file.</p>";
+    }
 });
 </script>
 </body>
